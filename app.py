@@ -7,6 +7,7 @@
 # CELL 1 - Imports
 # ═══════════════════════════════════════════════════════════════════════
 import re
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from dash import Dash, html, dcc, Input, Output, State, dash_table
@@ -261,25 +262,83 @@ def fig_keyword_bar(df, title):
 
 
 def fig_financial_risk(fin_df):
-    d = fin_df[fin_df["Metric"] == "Cost of response to risk"].copy() if not fin_df.empty else fin_df
+    """Dot plot, log x-axis.
+
+    Deliberately not bars: a bar encodes value as length measured from zero,
+    and a log axis has no zero, so bar length there is an artifact of the axis
+    range rather than the data. A dot encodes position only, which a log axis
+    handles honestly.
+    """
+    if fin_df is None or fin_df.empty or "Metric" not in fin_df.columns:
+        return fig_empty("Disclosed cost of climate risk response",
+                          "No company in the current selection discloses this figure")
+
+    d = fin_df[fin_df["Metric"] == "Cost of response to risk"].copy()
     if d.empty:
         return fig_empty("Disclosed cost of climate risk response",
                           "No company in the current selection discloses this figure")
-    d = d.sort_values("Amount", ascending=True).reset_index(drop=True)
+
+    # CDP has repeatable risk rows, so one company can disclose this line item
+    # more than once. Collapse to the largest figure and keep the count so the
+    # hover can say so, instead of silently drawing two bars on one category.
+    agg = (
+        d.groupby("Company")["Amount"]
+        .agg(Amount="max", n_figures="count")
+        .reset_index()
+        .sort_values("Amount", ascending=True)
+    )
+
+    hover_extra = [
+        "" if n == 1 else f"<br><i>{n} figures disclosed, largest shown</i>"
+        for n in agg["n_figures"]
+    ]
+
     fig = go.Figure(
-        go.Bar(
-            x=d["Company"], y=d["Amount"],
-            marker_color=[COMPANY_COLORS.get(c, RISK) for c in d["Company"]],
-            text=[f"${v:,.0f}" for v in d["Amount"]], textposition="outside", cliponaxis=False,
-            width=0.4 if len(d) <= 2 else None,
-            hovertemplate="<b>%{x}</b><br>$%{y:,.0f}<extra></extra>",
+        go.Scatter(
+            x=agg["Amount"],
+            y=agg["Company"],
+            mode="markers+text",
+            marker=dict(
+                size=17,
+                color=[COMPANY_COLORS.get(c, RISK) for c in agg["Company"]],
+                line=dict(color=CARD_BG, width=2),
+            ),
+            text=[f"${v:,.0f}" for v in agg["Amount"]],
+            textposition="middle right",
+            textfont=dict(family=FONT_BODY, size=12, color=TEXT),
+            cliponaxis=False,
+            customdata=hover_extra,
+            hovertemplate="<b>%{y}</b><br>$%{x:,.0f}%{customdata}<extra></extra>",
         )
     )
-    fig.update_layout(**PLOTLY_LAYOUT, showlegend=False, yaxis_title="Reported cost (USD, log scale)",
-                       yaxis_type="log",
-                       title=dict(text="Disclosed cost of climate risk response", font=dict(color=TEXT, size=15, family=FONT_HEAD)))
-    return fig
 
+    lo = float(agg["Amount"].min()) / 3.0
+    hi = float(agg["Amount"].max()) * 6.0  # headroom for the value labels
+
+    fig.update_layout(**PLOTLY_LAYOUT_HBAR, showlegend=False,
+                       height=110 + 54 * len(agg),
+                       title=dict(text="Disclosed cost of climate risk response",
+                                  font=dict(color=TEXT, size=15, family=FONT_HEAD)))
+    fig.update_xaxes(
+        title_text="Reported cost (USD, log scale — each gridline is 10x the one before)",
+        type="log",
+        dtick=1,              # one tick per power of ten, kills the 9/8/7/6 clutter
+        minor=dict(showgrid=False),
+        tickprefix="$",
+        tickformat="~s",      # 100k, 1M, 10M
+        range=[np.log10(lo), np.log10(hi)],
+    )
+
+    if len(agg) >= 2:
+        ratio = agg["Amount"].max() / agg["Amount"].min()
+        fig.add_annotation(
+            xref="paper", yref="paper", x=0, y=1.02, xanchor="left", yanchor="bottom",
+            showarrow=False,
+            text=f"Spread between highest and lowest disclosed figure: {ratio:,.0f}x",
+            font=dict(family=FONT_BODY, size=11, color=SUBTEXT),
+        )
+
+    return fig
 
 # ═══════════════════════════════════════════════════════════════════════
 # CELL 6 - Helper UI components
