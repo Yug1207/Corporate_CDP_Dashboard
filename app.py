@@ -3,7 +3,6 @@
 # ║   Adobe · Cognizant · Accenture · Alphabet · Microsoft               ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
-
 # ═══════════════════════════════════════════════════════════════════════
 # CELL 1 - Imports
 # ═══════════════════════════════════════════════════════════════════════
@@ -796,8 +795,19 @@ app.clientside_callback(
     State("kpi-target-store", "data"),
 )
 
+
 # ═══════════════════════════════════════════════════════════════════════
 # CELL 9 - Run
 # ═══════════════════════════════════════════════════════════════════════
-if __name__ == "__main__":
-    app.run(debug=False, port=8050)
+import webbrowser
+from threading import Timer
+
+def open_browser():
+    webbrowser.open_new_tab("http://127.0.0.1:8050/")
+
+if __name__ == '__main__':
+    # Schedule the browser to open 1.5 seconds after running the server
+    Timer(1.5, open_browser).start()
+    app.run(host='127.0.0.1', port=8050, debug=False)
+
+app = app.server
