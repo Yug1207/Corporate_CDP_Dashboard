@@ -12,6 +12,7 @@
 # ═══════════════════════════════════════════════════════════════════════
 # CELL 1 - Imports
 # ═══════════════════════════════════════════════════════════════════════
+import os
 import re
 import pandas as pd
 import plotly.graph_objects as go
@@ -23,7 +24,7 @@ import dash_bootstrap_components as dbc
 # ═══════════════════════════════════════════════════════════════════════
 DATA_FILE = os.path.join(os.path.dirname(__file__), "Companies_CDP_MERGED.xlsx")
 
-raw = pd.read_excel(FILE_PATH, sheet_name="All Matches")
+raw = pd.read_excel(DATA_FILE, sheet_name="All Matches")
 raw["combined_text"] = (
     raw["Question Text"].fillna("") + " " + raw["Answer Text"].fillna("")
 ).str.strip()
