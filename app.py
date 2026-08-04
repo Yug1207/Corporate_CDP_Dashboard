@@ -1,18 +1,12 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[5]:
-
-
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║   CDP CLIMATE CHANGE 2024 - FIVE COMPANY DISCLOSURE DASHBOARD        ║
 # ║   Adobe · Cognizant · Accenture · Alphabet · Microsoft               ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
+
 # ═══════════════════════════════════════════════════════════════════════
 # CELL 1 - Imports
 # ═══════════════════════════════════════════════════════════════════════
-import os
 import re
 import pandas as pd
 import plotly.graph_objects as go
@@ -22,9 +16,9 @@ import dash_bootstrap_components as dbc
 # ═══════════════════════════════════════════════════════════════════════
 # CELL 2 - Load data
 # ═══════════════════════════════════════════════════════════════════════
-DATA_FILE = os.path.join(os.path.dirname(__file__), "Companies_CDP_MERGED.xlsx")
+FILE_PATH = "Companies_CDP_MERGED.xlsx"
 
-raw = pd.read_excel(DATA_FILE, sheet_name="All Matches")
+raw = pd.read_excel(FILE_PATH, sheet_name="All Matches")
 raw["combined_text"] = (
     raw["Question Text"].fillna("") + " " + raw["Answer Text"].fillna("")
 ).str.strip()
@@ -195,9 +189,10 @@ HERO_IMAGE = "https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?w=180
 
 def fig_empty(title, message="No data for the current company selection"):
     fig = go.Figure()
-    fig.update_layout(**PLOTLY_LAYOUT, showlegend=False,
-                       title=dict(text=title, font=dict(color=TEXT, size=15, family=FONT_HEAD)),
-                       xaxis=dict(visible=False), yaxis=dict(visible=False), height=220)
+    fig.update_layout(**PLOTLY_LAYOUT, showlegend=False, height=220,
+                       title=dict(text=title, font=dict(color=TEXT, size=15, family=FONT_HEAD)))
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
     fig.add_annotation(text=message, showarrow=False, font=dict(color=SUBTEXT, size=13))
     return fig
 
@@ -267,39 +262,23 @@ def fig_keyword_bar(df, title):
 
 
 def fig_financial_risk(fin_df):
-    if fin_df.empty:
-        return fig_empty(
-            "Disclosed cost of climate risk response",
-            "No company in the current selection discloses this figure",
-        )
-
+    d = fin_df[fin_df["Metric"] == "Cost of response to risk"].copy() if not fin_df.empty else fin_df
+    if d.empty:
+        return fig_empty("Disclosed cost of climate risk response",
+                          "No company in the current selection discloses this figure")
+    d = d.sort_values("Amount", ascending=True).reset_index(drop=True)
     fig = go.Figure(
         go.Bar(
-            x=fin_df["Company"],
-            y=fin_df["Amount"],
-            marker_color=[COMPANY_COLORS.get(c, RISK) for c in fin_df["Company"]],
-            text=fin_df["Amount"].apply(lambda v: f"${v:,.0f}"),
-            textposition="outside",
-            cliponaxis=False,
-            hovertemplate="<b>%{x}</b><br>Disclosed cost: $%{y:,.0f}<extra></extra>",
+            x=d["Company"], y=d["Amount"],
+            marker_color=[COMPANY_COLORS.get(c, RISK) for c in d["Company"]],
+            text=[f"${v:,.0f}" for v in d["Amount"]], textposition="outside", cliponaxis=False,
+            width=0.4 if len(d) <= 2 else None,
+            hovertemplate="<b>%{x}</b><br>$%{y:,.0f}<extra></extra>",
         )
     )
-
-    # 1. Apply base layout dictionary
-    fig.update_layout(**PLOTLY_LAYOUT)
-
-    # 2. Apply custom overrides (without duplicating keyword arguments)
-    fig.update_layout(
-        showlegend=False,
-        yaxis_title="Reported cost (USD, log scale)",
-        yaxis_type="log",
-        margin=dict(l=50, r=40, t=56, b=40),
-        title=dict(
-            text="Disclosed cost of climate risk response",
-            font=dict(color=TEXT, size=15, family=FONT_HEAD),
-        ),
-    )
-
+    fig.update_layout(**PLOTLY_LAYOUT, showlegend=False, yaxis_title="Reported cost (USD, log scale)",
+                       yaxis_type="log",
+                       title=dict(text="Disclosed cost of climate risk response", font=dict(color=TEXT, size=15, family=FONT_HEAD)))
     return fig
 
 
@@ -820,15 +799,5 @@ app.clientside_callback(
 # ═══════════════════════════════════════════════════════════════════════
 # CELL 9 - Run
 # ═══════════════════════════════════════════════════════════════════════
-import webbrowser
-from threading import Timer
-
-def open_browser():
-    webbrowser.open_new_tab("http://127.0.0.1:8050/")
-
-if __name__ == '__main__':
-    # Schedule the browser to open 1.5 seconds after running the server
-    Timer(1.5, open_browser).start()
-    app.run(host='127.0.0.1', port=8050, debug=False)
-
-app = app.server
+if __name__ == "__main__":
+    app.run(debug=False, port=8050)
